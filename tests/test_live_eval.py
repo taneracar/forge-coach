@@ -74,7 +74,7 @@ async def test_scenario(coach, name, lang):
     sessions, expected_tone = SCENARIOS[name]
     stats = compute_weekly_stats(sessions, PROFILE, TODAY, UTC)
 
-    report = await coach.write_report(stats, lang)
+    report, _ = await coach.write_report(stats, lang)
     text = " ".join([report.headline, *report.wins, *report.focus_areas, *report.next_week])
 
     assert ungrounded_numbers(report, stats) == []

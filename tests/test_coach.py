@@ -75,7 +75,8 @@ def coach_with(*outcomes):
 
 async def test_returns_a_grounded_report(stats):
     coach, messages = coach_with(ok(report("Bench Press is moving.")))
-    result = await coach.write_report(stats, "tr")
+    result, model = await coach.write_report(stats, "tr")
+    assert model == "claude-opus-5-5"
     assert result.wins == ["Bench Press is moving."]
     [call] = messages.calls
     assert call["output_format"] is CoachReport
@@ -85,7 +86,7 @@ async def test_returns_a_grounded_report(stats):
 
 async def test_retries_once_when_a_number_is_invented(stats):
     coach, messages = coach_with(ok(report("Up 140%.")), ok(report("Bench Press went up.")))
-    result = await coach.write_report(stats, "en")
+    result, _ = await coach.write_report(stats, "en")
     assert result.wins == ["Bench Press went up."]
     correction = messages.calls[1]["messages"][-1]["content"]
     assert "140" in correction

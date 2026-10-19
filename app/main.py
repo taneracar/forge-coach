@@ -11,10 +11,11 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import CurrentUser, current_user
-from app.coach import ClaudeCoach, Coach, CoachError, CoachUnavailable, Lang
+from app.coach import ClaudeCoach, Coach, CoachError, CoachUnavailable, FallbackCoach, Lang
 from app.config import get_settings
 from app.models import WeeklyCoachResponse
 from app.reader import SupabaseReader, TrainingReader, UpstreamError
+from app.rules import RuleCoach
 from app.stats import compute_weekly_stats, week_start
 
 
@@ -43,9 +44,18 @@ class ReportCache:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    async with httpx.AsyncClient() as http, anthropic.AsyncAnthropic() as claude:
+    async with (
+        httpx.AsyncClient() as http,
+        anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or "unset") as claude,
+    ):
         app.state.reader = SupabaseReader(http, settings.supabase_url, settings.supabase_anon_key)
-        app.state.coach = ClaudeCoach(claude, settings.coach_model, settings.coach_effort)
+        app.state.coach = (
+            FallbackCoach(
+                ClaudeCoach(claude, settings.coach_model, settings.coach_effort), RuleCoach()
+            )
+            if settings.anthropic_api_key
+            else RuleCoach()
+        )
         app.state.cache = ReportCache(settings.cache_ttl_seconds)
         yield
 
@@ -99,14 +109,17 @@ def create_app() -> FastAPI:
             return cached.model_copy(update={"cached": True})
 
         try:
-            report = await coach.write_report(stats, lang)
+            report, model = await coach.write_report(stats, lang)
         except CoachUnavailable as e:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from None
         except CoachError:
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not write the report") from None
 
-        result = WeeklyCoachResponse(stats=stats, report=report, model=coach.model, cached=False)
-        cache.put(key, result)
+        result = WeeklyCoachResponse(stats=stats, report=report, model=model, cached=False)
+        # A fallback report is free to rebuild; caching it would hide the
+        # better one once the primary coach recovers.
+        if model == coach.model:
+            cache.put(key, result)
         return result
 
     return app

@@ -38,7 +38,7 @@ class FakeCoach:
         self.calls += 1
         if self.error:
             raise self.error
-        return REPORT
+        return REPORT, self.model
 
 
 @pytest.fixture
@@ -114,3 +114,17 @@ def test_rejects_unknown_language_and_time_zone(wire):
 def test_upstream_failures(wire, reader, coach, code):
     client, *_ = wire(reader=reader, coach=coach)
     assert client.get("/v1/coach/weekly").status_code == code
+
+
+class FallingBackCoach(FakeCoach):
+    async def write_report(self, stats, lang):
+        self.calls += 1
+        return REPORT, "rules-v1"
+
+
+def test_fallback_reports_are_not_cached(wire):
+    client, _, coach = wire(coach=FallingBackCoach())
+    first = client.get("/v1/coach/weekly").json()
+    client.get("/v1/coach/weekly")
+    assert first["model"] == "rules-v1"
+    assert coach.calls == 2

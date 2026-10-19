@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_anon_key: str
 
-    # ANTHROPIC_API_KEY is read by the SDK itself.
+    # Without a key the service runs the free rule-based coach only. With one,
+    # Claude writes the reports and the rule-based coach covers its failures.
+    anthropic_api_key: str | None = None
     coach_model: str = "claude-opus-5-5"
     coach_effort: str = "low"
 

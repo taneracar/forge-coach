@@ -56,7 +56,9 @@ class CoachUnavailable(CoachError):
 class Coach(Protocol):
     model: str
 
-    async def write_report(self, stats: WeeklyStats, lang: Lang) -> CoachReport: ...
+    async def write_report(self, stats: WeeklyStats, lang: Lang) -> tuple[CoachReport, str]:
+        """Returns the report and the name of the model that wrote it."""
+        ...
 
 
 def ungrounded_numbers(report: CoachReport, stats: WeeklyStats) -> list[str]:
@@ -80,7 +82,7 @@ class ClaudeCoach:
         self.model = model
         self._effort = effort
 
-    async def write_report(self, stats: WeeklyStats, lang: Lang) -> CoachReport:
+    async def write_report(self, stats: WeeklyStats, lang: Lang) -> tuple[CoachReport, str]:
         messages: list[dict] = [
             {
                 "role": "user",
@@ -91,7 +93,7 @@ class ClaudeCoach:
         report = await self._ask(messages, lang)
         bad = ungrounded_numbers(report, stats)
         if not bad:
-            return report
+            return report, self.model
 
         # One correction round: show the model its own answer and what was wrong.
         messages += [
@@ -105,7 +107,7 @@ class ClaudeCoach:
         report = await self._ask(messages, lang)
         if bad := ungrounded_numbers(report, stats):
             raise CoachError(f"Report used numbers not in the statistics: {bad}")
-        return report
+        return report, self.model
 
     async def _ask(self, messages: list[dict], lang: Lang) -> CoachReport:
         try:
@@ -133,3 +135,22 @@ class ClaudeCoach:
         if response.stop_reason == "max_tokens" or response.parsed_output is None:
             raise CoachError("The model returned an incomplete report")
         return response.parsed_output
+
+
+class FallbackCoach:
+    """Tries the primary coach and answers with the fallback if it fails.
+
+    A failed Claude call (no key, rate limit, refusal, invented numbers) still
+    gives the user a report, just a plainer one.
+    """
+
+    def __init__(self, primary: Coach, fallback: Coach):
+        self._primary = primary
+        self._fallback = fallback
+        self.model = primary.model
+
+    async def write_report(self, stats: WeeklyStats, lang: Lang) -> tuple[CoachReport, str]:
+        try:
+            return await self._primary.write_report(stats, lang)
+        except CoachError:
+            return await self._fallback.write_report(stats, lang)
