@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t forge-coach .
+      - name: Container starts and answers /health
+        run: |
+          docker run -d --name coach -p 8080:8080 \
+            -e SUPABASE_URL=https://example.supabase.co \
+            -e SUPABASE_ANON_KEY=ci -e ANTHROPIC_API_KEY=ci forge-coach
+          for i in $(seq 1 20); do
+            curl -fs localhost:8080/health && exit 0
+            sleep 1
+          done
+          docker logs coach
+          exit 1
