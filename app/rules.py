@@ -91,7 +91,10 @@ def build_report(stats: WeeklyStats, lang: Lang) -> CoachReport:
     week = stats.this_week
     last = stats.previous_weeks[-1] if stats.previous_weeks else None
     target = stats.target_sessions_per_week
-    missed = target is not None and last is not None and last.sessions < target
+    # Only a user who was already training before last week can have "missed"
+    # it; someone in their first week was simply not using the app yet.
+    trained_before = any(w.sessions for w in stats.previous_weeks[:-1])
+    missed = target is not None and last is not None and last.sessions < target and trained_before
 
     wins: list[str] = []
     for pr in stats.personal_records[:2]:

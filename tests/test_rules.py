@@ -138,3 +138,10 @@ async def test_fallback_is_not_used_when_the_primary_works():
 def test_a_week_in_progress_is_not_called_a_volume_drop():
     report = build_report(stats_for("missed_last_week"), "en")
     assert not any(line.startswith("Volume is down") for line in report.focus_areas)
+
+
+def test_first_week_users_are_not_nudged_about_last_week():
+    stats = compute_weekly_stats([session(TODAY, s("Bench Press", 60, 5))], PROFILE, TODAY, UTC)
+    report = build_report(stats, "en")
+    assert report.tone == "steady"
+    assert not any("planned" in line for line in report.focus_areas)

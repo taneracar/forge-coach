@@ -45,6 +45,15 @@ FREE_NUMBERS = {*map(float, range(11)), 2.5, 5.0, 7.5}
 _NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
 
 
+def system_prompt(lang: Lang) -> str:
+    return SYSTEM_PROMPT.format(language=LANGUAGES[lang])
+
+
+def stats_message(stats: WeeklyStats) -> str:
+    """The user turn every coach model sees, Claude or a local one."""
+    return "Training statistics:\n" + json.dumps(stats.model_dump(mode="json"), indent=1)
+
+
 class CoachError(Exception):
     pass
 
@@ -83,13 +92,7 @@ class ClaudeCoach:
         self._effort = effort
 
     async def write_report(self, stats: WeeklyStats, lang: Lang) -> tuple[CoachReport, str]:
-        messages: list[dict] = [
-            {
-                "role": "user",
-                "content": "Training statistics:\n"
-                + json.dumps(stats.model_dump(mode="json"), indent=1),
-            }
-        ]
+        messages: list[dict] = [{"role": "user", "content": stats_message(stats)}]
         report = await self._ask(messages, lang)
         bad = ungrounded_numbers(report, stats)
         if not bad:
@@ -114,7 +117,7 @@ class ClaudeCoach:
             response = await self._client.beta.messages.parse(
                 model=self.model,
                 max_tokens=16000,
-                system=SYSTEM_PROMPT.format(language=LANGUAGES[lang]),
+                system=system_prompt(lang),
                 messages=messages,
                 output_format=CoachReport,
                 output_config={"effort": self._effort},
