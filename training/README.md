@@ -23,3 +23,19 @@ passes the same grounding checks as Claude.
    ```
 4. **Fine-tune** (next): LoRA with MLX on Apple Silicon, then evaluate on the
    test split with the same checks as `tests/test_live_eval.py`.
+
+## Baseline: Qwen3-4B-Instruct-2507 (4-bit MLX), no fine-tuning (2026-10-20)
+
+Three scenarios, with the JSON schema added to the system prompt. Every
+answer was valid JSON, at 3.5–8.4 s per report on an M4 Pro.
+
+| seed | case | tone | invented numbers |
+|---|---|---|---|
+| 3 (tr) | record week | `steady` (should be `celebrate`) | 75, 35, 45, 12 and others |
+| 4 (en) | stalled lifts | `nudge` | 70%, 75% of 1RM; read 8730 kg as "8.73 kg" |
+| 0 (en) | new user | `welcome` | none |
+
+Other problems: the Turkish is ungrammatical ("ağıyla", "repetisyon",
+third person), there is generic programming advice, and it uses Turkish
+thousands separators ("11.485"), which the grounding check reads as a decimal.
+This is the gap fine-tuning has to close.
