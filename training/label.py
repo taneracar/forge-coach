@@ -17,7 +17,7 @@ from pathlib import Path
 from app.coach import Lang, ungrounded_numbers
 from app.models import CoachReport, WeeklyStats
 from app.rules import build_report
-from training.scenarios import ARCHETYPES, Scenario, generate
+from training.scenarios import ARCHETYPES, Scenario, generate, lang_for
 
 LABELS = Path(__file__).parent / "labels"
 SECTIONS = ["headline", "wins", "focus_areas", "next_week", "tone"]
@@ -134,7 +134,7 @@ def cmd_new(count: int) -> None:
     LABELS.mkdir(exist_ok=True)
     made, seed = 0, 0
     while made < count:
-        lang: Lang = "tr" if seed % 2 else "en"
+        lang: Lang = lang_for(seed)
         path = example_path(seed, lang)
         if not path.exists():
             path.write_text(render(seed, lang))

@@ -7,6 +7,7 @@ sessions go through the real `compute_weekly_stats`, so the model is trained on
 exactly the input it will see in production.
 """
 
+import hashlib
 import random
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -47,6 +48,24 @@ ARCHETYPES = [
 
 GOALS = ["build_muscle", "get_stronger", "lose_fat", "stay_fit", None]
 LEVELS = ["beginner", "intermediate", "advanced", None]
+
+
+def _hash(seed: int) -> int:
+    return int(hashlib.sha256(str(seed).encode()).hexdigest(), 16)
+
+
+def split_for(seed: int) -> str:
+    """test / valid / train, about 10 / 10 / 80 percent.
+
+    Hashed rather than taken from the last digit: the archetype already uses
+    `seed % 10`, and tying the split to it once put every new-user scenario in
+    the test set and none in training.
+    """
+    return {0: "test", 1: "valid"}.get(_hash(seed) % 10, "train")
+
+
+def lang_for(seed: int) -> str:
+    return "tr" if (_hash(seed) >> 16) % 2 else "en"
 
 
 @dataclass

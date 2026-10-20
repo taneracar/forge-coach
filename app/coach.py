@@ -54,6 +54,20 @@ def stats_message(stats: WeeklyStats) -> str:
     return "Training statistics:\n" + json.dumps(stats.model_dump(mode="json"), indent=1)
 
 
+_THINK = re.compile(r"<think>.*?</think>", re.S)
+
+
+def parse_report(raw: str) -> CoachReport:
+    """Reads a report from a local model's raw text.
+
+    Qwen3 chat templates put an empty <think></think> block before assistant
+    turns, so a fine-tuned model learns to emit one; code fences show up too.
+    """
+    text = _THINK.sub("", raw).strip()
+    text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    return CoachReport.model_validate_json(text)
+
+
 class CoachError(Exception):
     pass
 

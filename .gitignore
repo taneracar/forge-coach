@@ -6,3 +6,5 @@ __pycache__/
 *.egg-info/
 build/
 training/data/
+training/adapters/
+training/eval/

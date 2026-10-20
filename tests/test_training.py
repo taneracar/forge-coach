@@ -6,7 +6,7 @@ import pytest
 from app.coach import ungrounded_numbers
 from app.rules import build_report
 from training import build_dataset, label
-from training.scenarios import ARCHETYPES, generate
+from training.scenarios import ARCHETYPES, generate, lang_for, split_for
 
 
 def test_scenarios_are_reproducible():
@@ -80,7 +80,18 @@ def test_only_done_labels_reach_the_dataset(labels_dir):
         json.loads(row["messages"][2]["content"])  # the target is valid JSON
 
 
-def test_splits_never_share_a_seed():
-    assert build_dataset.split_for(10) == "test"
-    assert build_dataset.split_for(21) == "valid"
-    assert build_dataset.split_for(32) == "train"
+def test_every_split_sees_every_archetype_and_language():
+    seen = {name: (set(), set()) for name in ("train", "valid", "test")}
+    for seed in range(100_000, 102_000):
+        archetypes, langs = seen[split_for(seed)]
+        archetypes.add(ARCHETYPES[seed % 10])  # the rule generate() uses
+        langs.add(lang_for(seed))
+    for name, (archetypes, langs) in seen.items():
+        assert archetypes == set(ARCHETYPES), name
+        assert langs == {"en", "tr"}, name
+
+
+def test_split_sizes_are_roughly_ten_ten_eighty():
+    counts = Counter(split_for(seed) for seed in range(10_000))
+    assert 800 < counts["test"] < 1200
+    assert 800 < counts["valid"] < 1200

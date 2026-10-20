@@ -5,7 +5,7 @@ import anthropic
 import httpx
 import pytest
 
-from app.coach import ClaudeCoach, CoachError, CoachUnavailable, ungrounded_numbers
+from app.coach import ClaudeCoach, CoachError, CoachUnavailable, parse_report, ungrounded_numbers
 from app.models import CoachReport, TrainingProfile
 from app.stats import compute_weekly_stats
 from tests.factories import TODAY, s, session, weeks_ago
@@ -112,3 +112,9 @@ async def test_rate_limit_is_temporary(stats):
     coach, _ = coach_with(error)
     with pytest.raises(CoachUnavailable):
         await coach.write_report(stats, "en")
+
+
+def test_parse_report_strips_think_blocks_and_fences():
+    body = '{"headline": "Hi.", "wins": [], "focus_areas": [], "next_week": [], "tone": "steady"}'
+    raw = f"<think>\n\n</think>\n\n```json\n{body}\n```"
+    assert parse_report(raw).headline == "Hi."
