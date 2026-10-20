@@ -6,8 +6,10 @@
 Each example is a Markdown file in training/labels/. The top shows the week's
 statistics in plain form; below it is a draft from the rule-based coach. Rewrite
 the draft the way a good coach would say it, then change `status: draft` to
-`status: done`. `check` refuses a file whose numbers are not in the statistics,
-whose lists have more than 3 items, or whose tone is not one of the four.
+`status: done`. `status: review` marks a report someone else wrote that is
+waiting for a person to read it; only `done` reaches the dataset. `check`
+refuses a file whose numbers are not in the statistics, whose lists have more
+than 3 items, or whose tone is not one of the four.
 """
 
 import re
@@ -144,7 +146,7 @@ def cmd_new(count: int) -> None:
 
 
 def cmd_check() -> int:
-    counts = {"done": 0, "draft": 0, "broken": 0}
+    counts = {"done": 0, "review": 0, "draft": 0, "broken": 0}
     failed = 0
     for path in sorted(LABELS.glob("*.md")):
         status, problems = validate(path)
@@ -152,7 +154,7 @@ def cmd_check() -> int:
         if problems:
             failed += 1
             print(f"FIX  {path.name}: " + "; ".join(problems))
-    print(f"done {counts['done']} | draft {counts['draft']} | broken {counts['broken']}")
+    print(" | ".join(f"{k} {v}" for k, v in counts.items()))
     return 1 if failed else 0
 
 
