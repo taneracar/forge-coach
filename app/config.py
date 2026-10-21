@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     coach_model: str = "claude-opus-5-5"
     coach_effort: str = "low"
 
+    # Path to a LoRA adapter from training/ (Apple Silicon only, needs the
+    # `local` extra). When set, the fine-tuned model writes reports that pass
+    # the checks, and the rule-based coach covers the rest.
+    local_coach_adapter: str | None = None
+    local_coach_base: str = "mlx-community/Qwen3-4B-Instruct-2507-4bit"
+
     # How much history the statistics look at.
     history_weeks: int = 8
 

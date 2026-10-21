@@ -2,6 +2,7 @@ import hashlib
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Annotated
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -49,15 +50,29 @@ async def lifespan(app: FastAPI):
         anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or "unset") as claude,
     ):
         app.state.reader = SupabaseReader(http, settings.supabase_url, settings.supabase_anon_key)
-        app.state.coach = (
-            FallbackCoach(
-                ClaudeCoach(claude, settings.coach_model, settings.coach_effort), RuleCoach()
-            )
-            if settings.anthropic_api_key
-            else RuleCoach()
-        )
+        app.state.coach = build_coach(settings, claude)
         app.state.cache = ReportCache(settings.cache_ttl_seconds)
         yield
+
+
+def build_coach(settings, claude: anthropic.AsyncAnthropic) -> Coach:
+    """Claude, then the local fine-tuned model, then the rule-based coach.
+
+    Each layer is used only if configured, and each one falls back to the
+    next when its report fails the checks or it is unavailable.
+    """
+    coach: Coach = RuleCoach()
+    if settings.local_coach_adapter:
+        from app.local import LocalCoach, mlx_generator
+
+        generate = mlx_generator(settings.local_coach_base, settings.local_coach_adapter)
+        name = "local:" + Path(settings.local_coach_adapter).name
+        coach = FallbackCoach(LocalCoach(generate, name), coach)
+    if settings.anthropic_api_key:
+        coach = FallbackCoach(
+            ClaudeCoach(claude, settings.coach_model, settings.coach_effort), coach
+        )
+    return coach
 
 
 def create_app() -> FastAPI:
