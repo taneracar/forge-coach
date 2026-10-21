@@ -147,3 +147,29 @@ Conclusion so far: a 4B model fine-tuned on tens of examples imitates the
 style but cannot be trusted with facts. Any serving path has to run the
 number and claims checks and fall back to the rule coach. The next real lever
 is data volume (hundreds of labels), not more steps.
+
+## Hybrid serving: local model for wording, checks, rule fallback (2026-10-21)
+
+`app/local.py` serves an adapter through mlx-lm, and every report is checked:
+- numbers
+- claims
+- lists of 3 or fewer
+- medical/diet filter
+
+A failure gets one sampled retry. If the retry fails too, the rule coach answers.
+Enable it with `LOCAL_COACH_ADAPTER=training/adapters/labels-v2` (Apple
+Silicon, `pip install -e ".[local]"`).
+
+`python -m training.hybrid_eval labels-v2` on the 41 test examples:
+
+| served by | share |
+|---|---|
+| local:labels-v2 | 85% |
+| rules-v1 (fallback) | 15% |
+
+The average was 5.4 s per report, with a maximum of 19 s when both attempts
+failed before the fallback. Every served report passed all checks. The retry
+lifts the local model's share from the 73% single-shot pass rate to 85%.
+
+MLX ties a model to the thread that loaded it, so loading and generation run
+on one dedicated worker thread.

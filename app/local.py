@@ -36,13 +36,20 @@ def check(report: CoachReport, stats: WeeklyStats) -> list[str]:
 
 
 def mlx_generator(base: str, adapter_path: str, max_tokens: int = 700) -> Generate:
-    """Loads the model once and returns a blocking generate function."""
+    """Loads the model once and returns a blocking generate function.
+
+    MLX binds a model's streams to the thread that created it, so loading and
+    every generation run on one dedicated worker thread.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
     from mlx_lm import generate, load
     from mlx_lm.sample_utils import make_sampler
 
-    model, tok = load(base, adapter_path=adapter_path)
+    worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx")
+    model, tok = worker.submit(load, base, adapter_path=adapter_path).result()
 
-    def run(system: str, user: str, temperature: float) -> str:
+    def _run(system: str, user: str, temperature: float) -> str:
         msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         prompt = tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=False)
         return generate(
@@ -53,6 +60,9 @@ def mlx_generator(base: str, adapter_path: str, max_tokens: int = 700) -> Genera
             sampler=make_sampler(temp=temperature),
             verbose=False,
         )
+
+    def run(system: str, user: str, temperature: float) -> str:
+        return worker.submit(_run, system, user, temperature).result()
 
     return run
 
