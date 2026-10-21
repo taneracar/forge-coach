@@ -125,3 +125,25 @@ Takeaways:
    coach.
 2. More labels (hundreds, not tens) and longer training come before any
    serving use.
+
+## labels-v3: same data as v2, 400 iters (2026-10-21)
+
+| | labels-v2 (150 it) | labels-v3 (400 it) |
+|---|---|---|
+| valid JSON | 98% | 100% |
+| grounded numbers | 98% | 90% |
+| claims check passes | (see below) | 80% |
+| tone matches reference | 68% | 63% |
+| lists ≤ 3 | 93% | 100% |
+| identical to rule report | 2% | 2% |
+
+Validation loss swung between 0.073 (step 350) and 0.370 (step 400). With
+110 label rows, longer training memorises sentences from the labels and
+reuses them in the wrong situations. In the side-by-side it repeats "two weeks
+off" and "strength goal" on seeds where neither is true, and seed 904 is
+mostly nonsense.
+
+Conclusion so far: a 4B model fine-tuned on tens of examples imitates the
+style but cannot be trusted with facts. Any serving path has to run the
+number and claims checks and fall back to the rule coach. The next real lever
+is data volume (hundreds of labels), not more steps.
