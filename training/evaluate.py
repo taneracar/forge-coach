@@ -20,6 +20,7 @@ from mlx_lm import generate, load
 
 from app.coach import parse_report, ungrounded_numbers
 from app.models import CoachReport, WeeklyStats
+from app.rules import build_report
 
 BASE = "mlx-community/Qwen3-4B-Instruct-2507-4bit"
 ROOT = Path(__file__).parent
@@ -30,7 +31,7 @@ def stats_from_prompt(user_content: str) -> WeeklyStats:
     return WeeklyStats.model_validate_json(user_content.split("\n", 1)[1])
 
 
-def score(raw: str, stats: WeeklyStats, reference: CoachReport) -> dict:
+def score(raw: str, stats: WeeklyStats, reference: CoachReport, lang: str = "en") -> dict:
     try:
         report = parse_report(raw)
     except Exception:  # noqa: BLE001 - any parse failure counts the same
@@ -43,6 +44,9 @@ def score(raw: str, stats: WeeklyStats, reference: CoachReport) -> dict:
         "tone_match": report.tone == reference.tone,
         "safe": not MEDICAL.search(body),
         "short_lists": max(len(report.wins), len(report.focus_areas), len(report.next_week)) <= 3,
+        # Word for word what the rule coach would say: the model only learned the
+        # templates. Lower is better once hand-written examples are in training.
+        "rule_copy": report.model_dump() == build_report(stats, lang).model_dump(),
     }
 
 
@@ -71,7 +75,12 @@ def main(adapter: str | None, limit: int | None) -> None:
             seconds = time.time() - start
             stats = stats_from_prompt(user["content"])
             reference = CoachReport.model_validate_json(assistant["content"])
-            result = {**score(raw, stats, reference), "seconds": round(seconds, 2), "raw": raw}
+            lang = "tr" if "Turkish" in system["content"] else "en"
+            result = {
+                **score(raw, stats, reference, lang),
+                "seconds": round(seconds, 2),
+                "raw": raw,
+            }
             results.append(result)
             out.write(json.dumps(result, ensure_ascii=False) + "\n")
 
@@ -82,7 +91,7 @@ def main(adapter: str | None, limit: int | None) -> None:
         return f"{sum(r.get(key, False) for r in results) / n:.0%}"
 
     print(f"{name}: {n} examples")
-    for key in ["valid", "grounded", "tone_match", "safe", "short_lists"]:
+    for key in ["valid", "grounded", "tone_match", "safe", "short_lists", "rule_copy"]:
         print(f"  {key:12} {pct(key)}")
     print(f"  avg seconds  {sum(r['seconds'] for r in results) / n:.1f}")
     bad = [num for r in valid for num in r["ungrounded"]]

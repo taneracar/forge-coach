@@ -3,6 +3,7 @@
     python -m training.build_dataset                 # labelled examples only
     python -m training.build_dataset --rules 300     # plus 300 rule-coach examples
     python -m training.build_dataset --rules 300 --rules-eval 40   # pipeline smoke test
+    python -m training.build_dataset --rules 300 --rules-eval 40 --label-repeat 3
 
 Every line is {"messages": [system, user, assistant]}, the format mlx-lm and
 most fine-tuning tools read. The system and user turns are built by the same
@@ -37,7 +38,7 @@ def example(seed: int, lang: Lang, report: CoachReport) -> dict:
     }
 
 
-def build(rule_examples: int = 0, rule_eval: int = 0) -> dict[str, int]:
+def build(rule_examples: int = 0, rule_eval: int = 0, label_repeat: int = 1) -> dict[str, int]:
     splits: dict[str, list[dict]] = {"train": [], "valid": [], "test": []}
     used: set[int] = set()
 
@@ -46,7 +47,11 @@ def build(rule_examples: int = 0, rule_eval: int = 0) -> dict[str, int]:
         if status != "done" or problems:
             continue
         seed, lang, _, report = parse(path.read_text())
-        splits[split_for(seed)].append(example(seed, lang, report))
+        split = split_for(seed)
+        # Hand-written examples are few next to the rule ones; repeating them in
+        # train lets their style win without changing valid or test.
+        copies = label_repeat if split == "train" else 1
+        splits[split].extend([example(seed, lang, report)] * copies)
         used.add(seed)
 
     # Rule-coach reports teach the format and the grounding rule cheaply. They
@@ -76,4 +81,4 @@ if __name__ == "__main__":
     def flag(name: str) -> int:
         return int(sys.argv[sys.argv.index(name) + 1]) if name in sys.argv else 0
 
-    print(build(flag("--rules"), flag("--rules-eval")))
+    print(build(flag("--rules"), flag("--rules-eval"), flag("--label-repeat") or 1))

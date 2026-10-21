@@ -70,3 +70,27 @@ hand-written labels, with the rule examples kept only as format support.
 A first attempt split the data by `seed % 10`, the same digit that picks the
 archetype, so every test example was a new user and training had none. Splits
 and languages are now hashed per seed, and a test guards it.
+
+## labels-v1: 26 hand-approved labels ×3 + 300 rule examples (2026-10-20)
+
+`build_dataset --rules 300 --rules-eval 40 --label-repeat 3` gave 378 train
+rows (78 from labels, 300 from rules), 43 valid, and 41 test (40 rule + 1 label).
+Training used the same settings as the smoke run, and final validation loss
+was 0.026.
+
+| | rules-smoke | labels-v1 |
+|---|---|---|
+| valid JSON | 100% | 100% |
+| grounded numbers | 100% | 100% |
+| tone matches reference | 76% | 78% |
+| safe | 100% | 100% |
+| identical to rule report | 49% | **24%** |
+| seconds per report | 3.8 | 3.7 |
+
+The side-by-side on six unseen seeds (`python -m training.compare`, written to
+eval/compare.md) shows the limit plainly: labels-v1 still writes the rule
+coach's sentences and differs mostly by dropping or swapping a line. With 300
+rule rows against 78 label rows, the templates dominate the style.
+
+Next: train with far fewer rule rows (or none) so the hand-written style
+carries, and keep adding labels.
