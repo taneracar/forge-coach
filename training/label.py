@@ -16,6 +16,7 @@ import re
 import sys
 from pathlib import Path
 
+from app.claims import unsupported_claims
 from app.coach import Lang, ungrounded_numbers
 from app.models import CoachReport, WeeklyStats
 from app.rules import build_report
@@ -124,6 +125,7 @@ def validate(path: Path) -> tuple[str, list[str]]:
     stats = generate(seed).stats()
     if bad := ungrounded_numbers(report, stats):
         problems.append(f"numbers not in the statistics: {bad}")
+    problems += unsupported_claims(report, stats)
     for key in ["wins", "focus_areas", "next_week"]:
         if len(getattr(report, key)) > 3:
             problems.append(f"{key} has more than 3 items")

@@ -118,3 +118,12 @@ def test_parse_report_strips_think_blocks_and_fences():
     body = '{"headline": "Hi.", "wins": [], "focus_areas": [], "next_week": [], "tone": "steady"}'
     raw = f"<think>\n\n</think>\n\n```json\n{body}\n```"
     assert parse_report(raw).headline == "Hi."
+
+
+async def test_retries_when_a_claim_is_unsupported(stats):
+    coach, messages = coach_with(
+        ok(report("Two weeks off and you came back strong.")), ok(report("Bench Press went up."))
+    )
+    result, _ = await coach.write_report(stats, "en")
+    assert result.wins == ["Bench Press went up."]
+    assert "Unsupported claim" in messages.calls[1]["messages"][-1]["content"]

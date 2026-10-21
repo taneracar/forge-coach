@@ -13,6 +13,7 @@ from typing import Literal, Protocol
 
 import anthropic
 
+from app.claims import unsupported_claims
 from app.models import CoachReport, WeeklyStats
 
 Lang = Literal["en", "tr"]
@@ -99,6 +100,15 @@ def ungrounded_numbers(report: CoachReport, stats: WeeklyStats) -> list[str]:
     return bad
 
 
+def report_problems(report: CoachReport, stats: WeeklyStats) -> list[str]:
+    """Everything wrong with a report that code can check, as sentences."""
+    problems = []
+    if bad := ungrounded_numbers(report, stats):
+        problems.append(f"These numbers are not in the statistics: {', '.join(bad)}.")
+    problems += [f"Unsupported claim: {c}." for c in unsupported_claims(report, stats)]
+    return problems
+
+
 class ClaudeCoach:
     def __init__(self, client: anthropic.AsyncAnthropic, model: str, effort: str = "low"):
         self._client = client
@@ -108,8 +118,8 @@ class ClaudeCoach:
     async def write_report(self, stats: WeeklyStats, lang: Lang) -> tuple[CoachReport, str]:
         messages: list[dict] = [{"role": "user", "content": stats_message(stats)}]
         report = await self._ask(messages, lang)
-        bad = ungrounded_numbers(report, stats)
-        if not bad:
+        problems = report_problems(report, stats)
+        if not problems:
             return report, self.model
 
         # One correction round: show the model its own answer and what was wrong.
@@ -117,13 +127,13 @@ class ClaudeCoach:
             {"role": "assistant", "content": report.model_dump_json()},
             {
                 "role": "user",
-                "content": f"These numbers are not in the statistics: {', '.join(bad)}. "
-                "Rewrite the report using only numbers from the statistics.",
+                "content": " ".join(problems)
+                + " Rewrite the report using only numbers and facts from the statistics.",
             },
         ]
         report = await self._ask(messages, lang)
-        if bad := ungrounded_numbers(report, stats):
-            raise CoachError(f"Report used numbers not in the statistics: {bad}")
+        if problems := report_problems(report, stats):
+            raise CoachError(f"Report is not supported by the statistics: {problems}")
         return report, self.model
 
     async def _ask(self, messages: list[dict], lang: Lang) -> CoachReport:

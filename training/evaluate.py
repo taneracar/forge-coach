@@ -18,6 +18,7 @@ from pathlib import Path
 
 from mlx_lm import generate, load
 
+from app.claims import unsupported_claims
 from app.coach import parse_report, ungrounded_numbers
 from app.models import CoachReport, WeeklyStats
 from app.rules import build_report
@@ -41,6 +42,7 @@ def score(raw: str, stats: WeeklyStats, reference: CoachReport, lang: str = "en"
         "valid": True,
         "grounded": not ungrounded_numbers(report, stats),
         "ungrounded": ungrounded_numbers(report, stats),
+        "claims_ok": not unsupported_claims(report, stats),
         "tone_match": report.tone == reference.tone,
         "safe": not MEDICAL.search(body),
         "short_lists": max(len(report.wins), len(report.focus_areas), len(report.next_week)) <= 3,
@@ -91,7 +93,7 @@ def main(adapter: str | None, limit: int | None) -> None:
         return f"{sum(r.get(key, False) for r in results) / n:.0%}"
 
     print(f"{name}: {n} examples")
-    for key in ["valid", "grounded", "tone_match", "safe", "short_lists", "rule_copy"]:
+    for key in ["valid", "grounded", "claims_ok", "tone_match", "safe", "short_lists", "rule_copy"]:
         print(f"  {key:12} {pct(key)}")
     print(f"  avg seconds  {sum(r['seconds'] for r in results) / n:.1f}")
     bad = [num for r in valid for num in r["ungrounded"]]
