@@ -94,3 +94,34 @@ rule rows against 78 label rows, the templates dominate the style.
 
 Next: train with far fewer rule rows (or none) so the hand-written style
 carries, and keep adding labels.
+
+## labels-v2: 55 approved labels ×2 + 50 rule examples, 150 iters (2026-10-21)
+
+160 train rows (110 from labels). The test set is the same as v1.
+
+| | rules-smoke | labels-v1 | labels-v2 |
+|---|---|---|---|
+| valid JSON | 100% | 100% | 98% |
+| grounded numbers | 100% | 100% | 98% |
+| tone matches reference | 76% | 78% | 68% |
+| safe | 100% | 100% | 98% |
+| lists ≤ 3 | 100% | 100% | 93% |
+| identical to rule report | 49% | 24% | **2%** |
+| final val loss | 0.021 | 0.026 | 0.273 |
+
+v2 stopped copying the rule coach, but the side-by-side shows it now invents
+facts that the number check cannot catch:
+- a goal the user does not have
+- "two weeks off" when only one week was missed
+- muscle groups that were in fact trained
+- nonsense lines such as "keep Barbell Squat at 5 kg per rep"
+
+Validation loss was still falling at step 150, so the model is undertrained,
+and 55 labels are too few to teach the facts-to-sentences mapping.
+
+Takeaways:
+1. Grounding of numbers is not enough. Claims about goals, breaks, and muscle
+   groups need checks too, or the service must keep falling back to the rule
+   coach.
+2. More labels (hundreds, not tens) and longer training come before any
+   serving use.
