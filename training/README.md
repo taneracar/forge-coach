@@ -132,7 +132,7 @@ Takeaways:
 |---|---|---|
 | valid JSON | 98% | 100% |
 | grounded numbers | 98% | 90% |
-| claims check passes | (see below) | 80% |
+| claims check passes | 78% (31/40) | 80% (33/41) |
 | tone matches reference | 68% | 63% |
 | lists ≤ 3 | 93% | 100% |
 | identical to rule report | 2% | 2% |
