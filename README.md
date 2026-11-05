@@ -75,3 +75,8 @@ and that no medical or diet advice slips in.
 
 The Dockerfile builds a small non-root image that listens on `$PORT`. CI runs
 lint, tests, builds the image, and checks that the container answers `/health`.
+A push to `main` also publishes the image to `ghcr.io/taneracar/forge-coach`.
+
+`deploy/azure.sh` runs that image on Azure Container Apps (consumption plan, scale
+to zero, one replica). It needs `az login` and the three keys in `.env`, and it is
+safe to run again.
