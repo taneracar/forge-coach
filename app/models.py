@@ -61,6 +61,8 @@ class StalledLift(BaseModel):
 
 class WeeklyStats(BaseModel):
     week_start: date
+    # False while the week is still running; True for a report about a finished one.
+    week_finished: bool = False
     this_week: WeekSummary
     previous_weeks: list[WeekSummary]
     volume_change_pct: float | None

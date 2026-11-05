@@ -49,6 +49,7 @@ def compute_weekly_stats(
     today: date,
     tz: ZoneInfo,
     history_weeks: int = 8,
+    week_finished: bool = False,
 ) -> WeeklyStats:
     current = week_start(today)
     weeks = [current - timedelta(weeks=i) for i in range(history_weeks - 1, -1, -1)]
@@ -124,13 +125,14 @@ def compute_weekly_stats(
 
     return WeeklyStats(
         week_start=current,
+        week_finished=week_finished,
         this_week=this_week,
         previous_weeks=previous,
         volume_change_pct=volume_change,
         sets_by_muscle_group=dict(sorted(muscle_sets.items(), key=lambda kv: (-kv[1], kv[0]))),
         personal_records=sorted(records, key=lambda r: -r.estimated_1rm_kg),
         stalled_lifts=sorted(stalled, key=lambda s: -s.weeks_without_progress),
-        training_streak_weeks=_streak(summaries),
+        training_streak_weeks=_streak(summaries, week_finished),
         target_sessions_per_week=profile.preferred_training_days,
         goal=profile.goal,
         experience=profile.workout_experience,
@@ -145,14 +147,14 @@ def _summarize(wk: date, sessions: list[LoggedSession]) -> WeekSummary:
     )
 
 
-def _streak(summaries: list[WeekSummary]) -> int:
+def _streak(summaries: list[WeekSummary], week_finished: bool = False) -> int:
     """Consecutive weeks with at least one session, ending now.
 
-    The current week is still in progress, so an empty one does not break the
-    streak; counting simply starts from last week.
+    A week still in progress does not break the streak when it is empty;
+    counting simply starts from last week. A finished empty week does break it.
     """
     weeks = list(summaries)
-    if weeks and weeks[-1].sessions == 0:
+    if not week_finished and weeks and weeks[-1].sessions == 0:
         weeks.pop()
     streak = 0
     for w in reversed(weeks):

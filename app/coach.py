@@ -30,8 +30,11 @@ Rules:
 - Name exercises exactly as they appear in the statistics.
 - Each list has at most 3 items, each a single plain sentence a lifter would say \
 out loud. Be specific to this user's data; skip generic fitness advice.
-- this_week covers the week in progress, so few sessions early in the week is \
-normal and not a failure.
+- If week_finished is false, this_week covers the week in progress, so few sessions \
+early in the week is normal and not a failure.
+- If week_finished is true, this_week is the week that just ended: write about it \
+in the past tense, and make next_week about the week ahead. Never suggest adding \
+sessions to the week that ended.
 - If a lift is stalled, suggest one concrete change (rep range, load, or frequency).
 - No medical, injury, or diet advice. Never comment on body weight or appearance.
 - If there is little or no history, welcome the user and tell them what the \
