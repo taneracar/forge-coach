@@ -13,6 +13,8 @@ jobs:
   write-reports:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Holds the secrets below, so no other workflow can read the service-role key.
+    environment: SUPABASE_URL
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
