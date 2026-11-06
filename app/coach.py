@@ -35,6 +35,9 @@ early in the week is normal and not a failure.
 - If week_finished is true, this_week is the week that just ended: write about it \
 in the past tense, and make next_week about the week ahead. Never suggest adding \
 sessions to the week that ended.
+- Empty weeks before a user's first logged session only mean nothing was logged: the \
+user may be new. Do not call that a break or a return. Mention a break only when there \
+is training before the gap.
 - If a lift is stalled, suggest one concrete change (rep range, load, or frequency).
 - No medical, injury, or diet advice. Never comment on body weight or appearance.
 - If there is little or no history, welcome the user and tell them what the \

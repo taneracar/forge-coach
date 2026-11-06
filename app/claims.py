@@ -32,6 +32,12 @@ NUMBER_WORDS = {
 }  # fmt: skip
 
 
+BREAK_WORDS = re.compile(
+    r"\b(long|after a|after your|since your) (\w+ )?break\b|\bcom(ing|e) back\b|\bcomeback\b"
+    r"|\btime off\b|\baradan sonra\b|\bara ver|\buzun bir ara\b|\bgeri dön"
+)
+
+
 def _text(report: CoachReport) -> str:
     return " ".join([report.headline, *report.wins, *report.focus_areas, *report.next_week])
 
@@ -87,6 +93,11 @@ def unsupported_claims(report: CoachReport, stats: WeeklyStats) -> list[str]:
         actual = _weeks_off(stats)
         if n != actual:
             problems.append(f"says {n} weeks off, but the break was {actual}")
+
+    # With no earlier training in the window, empty weeks show only that nothing
+    # was logged: the user may be new. "arayı kapat" (close the gap) must still pass.
+    if _weeks_off(stats) == 0 and BREAK_WORDS.search(low):
+        problems.append("describes a break, but the statistics show no earlier training")
 
     had_history = any(w.sessions for w in stats.previous_weeks)
     if had_history and re.search(r"\byour first week\b(?! back)|\bilk haftan", low):
