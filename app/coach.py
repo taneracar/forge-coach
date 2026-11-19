@@ -49,7 +49,7 @@ LANGUAGES = {"en": "English", "tr": "Turkish"}
 # Numbers a report may use without them being in the statistics.
 FREE_NUMBERS = {*map(float, range(11)), 2.5, 5.0, 7.5}
 
-_NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
+_NUMBER = re.compile(r"(?<![\w.,])\d+(?:[.,]\d+)*")
 
 
 def system_prompt(lang: Lang) -> str:
@@ -76,7 +76,14 @@ def parse_report(raw: str) -> CoachReport:
 
 
 class CoachError(Exception):
-    pass
+    """A report could not be written.
+
+    `kind` names the failure without any user data, so it can go in public logs.
+    """
+
+    def __init__(self, message: str, kind: str = "error"):
+        super().__init__(message)
+        self.kind = kind
 
 
 class CoachUnavailable(CoachError):
@@ -100,10 +107,26 @@ def ungrounded_numbers(report: CoachReport, stats: WeeklyStats) -> list[str]:
     text = " ".join([report.headline, *report.wins, *report.focus_areas, *report.next_week])
     bad = []
     for n in _NUMBER.findall(text):
-        v = float(n.replace(",", "."))
-        if v not in allowed and round(v, 1) not in allowed:
+        if not any(v in allowed or round(v, 1) in allowed for v in readings(n)):
             bad.append(n)
     return bad
+
+
+def readings(n: str) -> list[float]:
+    """Every value a written number can mean.
+
+    "75,8" and "75.8" are decimals. "11.485" (Turkish) and "11,485" (English)
+    group thousands, but "1.250" could also be a decimal, so both readings
+    count. A number in a sentence ending ("Bench 80.") never reaches here
+    because the pattern needs a digit after the separator.
+    """
+    parts = re.split(r"[.,]", n)
+    values = []
+    if len(parts) <= 2:
+        values.append(float(".".join(parts)))
+    if len(parts) >= 2 and 1 <= len(parts[0]) <= 3 and all(len(p) == 3 for p in parts[1:]):
+        values.append(float("".join(parts)))
+    return values
 
 
 def report_problems(report: CoachReport, stats: WeeklyStats) -> list[str]:
@@ -139,7 +162,9 @@ class ClaudeCoach:
         ]
         report = await self._ask(messages, lang)
         if problems := report_problems(report, stats):
-            raise CoachError(f"Report is not supported by the statistics: {problems}")
+            raise CoachError(
+                f"Report is not supported by the statistics: {problems}", kind="unsupported"
+            )
         return report, self.model
 
     async def _ask(self, messages: list[dict], lang: Lang) -> CoachReport:
@@ -157,16 +182,18 @@ class ClaudeCoach:
                 fallbacks="default",
             )
         except (anthropic.RateLimitError, anthropic.OverloadedError) as e:
-            raise CoachUnavailable("Claude is busy, try again shortly") from e
+            raise CoachUnavailable("Claude is busy, try again shortly", kind="busy") from e
         except anthropic.APIConnectionError as e:
-            raise CoachUnavailable("Could not reach Claude") from e
+            raise CoachUnavailable("Could not reach Claude", kind="unreachable") from e
         except anthropic.APIStatusError as e:
-            raise CoachError(f"Claude API error {e.status_code}") from e
+            raise CoachError(
+                f"Claude API error {e.status_code}", kind=f"api_{e.status_code}"
+            ) from e
 
         if response.stop_reason == "refusal":
-            raise CoachError("The model declined to write this report")
+            raise CoachError("The model declined to write this report", kind="refusal")
         if response.stop_reason == "max_tokens" or response.parsed_output is None:
-            raise CoachError("The model returned an incomplete report")
+            raise CoachError("The model returned an incomplete report", kind="incomplete")
         return response.parsed_output
 
 

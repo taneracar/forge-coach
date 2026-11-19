@@ -6,6 +6,7 @@ import httpx
 
 from app.coach import CoachError, system_prompt
 from app.models import CoachReport, TrainingProfile
+from app.rules import RuleCoach
 from app.stats import compute_weekly_stats
 from app.weekly_job import Member, SupabaseReportStore, last_finished_sunday, run
 from tests.factories import s, session
@@ -130,7 +131,22 @@ async def test_one_failure_does_not_stop_the_others_and_is_reported(capsys):
 
     assert failed == 1
     assert [row[0] for row in store.saved] == ["user-2"]
-    assert "failed (CoachError)" in capsys.readouterr().out
+    assert "failed (CoachError: error)" in capsys.readouterr().out
+
+
+async def test_a_failed_claude_report_falls_back_to_the_rules(capsys):
+    store = FakeStore()
+
+    failed = await run(
+        store, FakeReader(trained()), FakeCoach(fail_for=1), "service", MONDAY, RuleCoach()
+    )
+
+    assert failed == 0
+    [(_, _, _, model, _)] = store.saved
+    assert model == RuleCoach.model
+    out = capsys.readouterr().out
+    assert f"written by {RuleCoach.model} (CoachError: error)" in out
+    assert "87.5" not in out
 
 
 async def test_an_unknown_time_zone_fails_only_that_member():

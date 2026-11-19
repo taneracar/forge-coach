@@ -45,6 +45,30 @@ def test_invented_numbers_are_caught(stats):
     assert ungrounded_numbers(r, stats) == ["140", "712"]
 
 
+def test_thousands_separators_are_understood():
+    stats = compute_weekly_stats(
+        [session(TODAY, *[s("Squat", 100, 5)] * 23)], TrainingProfile(), TODAY, UTC
+    )
+    total = round(stats.this_week.volume_kg)
+    assert total >= 1000
+    turkish = f"{total:,}".replace(",", ".")
+    english = f"{total:,}"
+    assert ungrounded_numbers(report(f"Bu hafta {turkish} kg kaldırdın."), stats) == []
+    assert ungrounded_numbers(report(f"You lifted {english} kg."), stats) == []
+    assert ungrounded_numbers(report("Bu hafta 99.999 kg kaldırdın."), stats) == ["99.999"]
+
+
+def test_sentence_end_after_a_number_is_not_a_decimal(stats):
+    assert ungrounded_numbers(report("You benched 65. Then rest 2."), stats) == []
+
+
+async def test_failures_name_their_kind(stats):
+    coach, _ = coach_with(ok(report("Up 140%.")), ok(report("Up 141%.")))
+    with pytest.raises(CoachError) as e:
+        await coach.write_report(stats, "en")
+    assert e.value.kind == "unsupported"
+
+
 def test_turkish_decimal_comma_is_understood(stats):
     assert ungrounded_numbers(report("Tahmini 75,8 kg."), stats) == []
     assert ungrounded_numbers(report("Tahmini 81,3 kg."), stats) == ["81,3"]

@@ -89,4 +89,4 @@ class LocalCoach:
             problems = check(report, stats)
             if not problems:
                 return report, self.model
-        raise CoachError(f"Local model report failed checks: {problems}")
+        raise CoachError(f"Local model report failed checks: {problems}", kind="unsupported")

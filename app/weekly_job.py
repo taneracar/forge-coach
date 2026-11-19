@@ -24,6 +24,7 @@ from app.auth import CurrentUser
 from app.coach import ClaudeCoach, Coach, CoachError, CoachUnavailable, Lang
 from app.models import CoachReport
 from app.reader import SupabaseReader, TrainingReader, UpstreamError
+from app.rules import RuleCoach
 from app.stats import compute_weekly_stats, week_start
 
 HISTORY_WEEKS = 8
@@ -113,6 +114,7 @@ async def write_member_report(
     store: ReportStore,
     reader: TrainingReader,
     coach: Coach,
+    fallback: Coach | None = None,
 ) -> str:
     zone = ZoneInfo(member.time_zone)
     sunday = last_finished_sunday(now.astimezone(zone).date())
@@ -131,20 +133,33 @@ async def write_member_report(
     if not stats.has_training:
         return "no training history"
 
-    report, model = await coach.write_report(stats, member.lang)
+    try:
+        report, model = await coach.write_report(stats, member.lang)
+        outcome = "written"
+    except CoachError as e:
+        # A plainer report beats no report. The rule coach cannot fail.
+        if fallback is None:
+            raise
+        report, model = await fallback.write_report(stats, member.lang)
+        outcome = f"written by {model} ({type(e).__name__}: {e.kind})"
     await store.save(member.user_id, week, member.lang, model, report)
-    return "written"
+    return outcome
 
 
 async def run(
-    store: ReportStore, reader: TrainingReader, coach: Coach, token: str, now: datetime
+    store: ReportStore,
+    reader: TrainingReader,
+    coach: Coach,
+    token: str,
+    now: datetime,
+    fallback: Coach | None = None,
 ) -> int:
     """Returns how many members failed. One failure never stops the others."""
     members = await store.members()
     failed = 0
     for number, member in enumerate(members, start=1):
         try:
-            outcome = await write_member_report(member, token, now, store, reader, coach)
+            outcome = await write_member_report(member, token, now, store, reader, coach, fallback)
         except (
             CoachError,
             CoachUnavailable,
@@ -152,8 +167,9 @@ async def run(
             ZoneInfoNotFoundError,
             ValueError,
         ) as e:
-            # The type only: messages can hold a user's numbers or id.
-            outcome = f"failed ({type(e).__name__})"
+            # The type and kind only: messages can hold a user's numbers or id.
+            kind = f": {e.kind}" if isinstance(e, CoachError) else ""
+            outcome = f"failed ({type(e).__name__}{kind})"
             failed += 1
         print(f"Member {number} of {len(members)}: {outcome}")
     return failed
@@ -171,7 +187,9 @@ async def main() -> int:
         store = SupabaseReportStore(http, supabase_url, service_key)
         reader = SupabaseReader(http, supabase_url, service_key)
         coach = ClaudeCoach(claude, model)
-        failed = await run(store, reader, coach, service_key, datetime.now().astimezone())
+        failed = await run(
+            store, reader, coach, service_key, datetime.now().astimezone(), RuleCoach()
+        )
     return 1 if failed else 0
 
 
